@@ -91,6 +91,7 @@ def main():
         lf.match_to_schema(FEATURES_SCHEMA).sink_parquet(output_path)
     except pl.exceptions.SchemaError as e:
         logger.exception("Schema validation failed: %s", e)
+        raise
 
     logger.info("Feature calculation completed successfully!")
 
