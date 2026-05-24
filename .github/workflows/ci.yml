@@ -16,6 +16,7 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
+          prune-cache: false
       - uses: pre-commit/action@v3.0.1
 
   test:
@@ -31,6 +32,7 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
+          prune-cache: false
       - name: Sync dependencies
         working-directory: services/${{ matrix.service }}
         run: uv sync --frozen
