@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import os
+import logging
 
 import polars as pl
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger: logging.Logger = logging.getLogger(__name__)
 
 RAW_SCHEMA = pl.Schema(
     {
@@ -31,6 +37,7 @@ CLEANED_SCHEMA = pl.Schema(
 
 
 def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
+    logger.info("Applying transformations ...")
     return (
         lf
         # Cast data types for better performance
@@ -68,7 +75,7 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
     )
 
 
-def main():
+def main() -> None:
     input_path: str = os.environ.get(
         "RAW_INPUT_PATH", default="s3://raw/temperatures.parquet"
     )
@@ -76,17 +83,19 @@ def main():
         "CLEAN_OUTPUT_PATH", default="s3://interim/temperatures.parquet"
     )
 
-    # Read raw data from S3
+    logger.info("Reading raw data from %r ...", input_path)
     lf: pl.LazyFrame = pl.scan_parquet(input_path, schema=RAW_SCHEMA)
 
     # Apply transformations
     lf: pl.LazyFrame = lf.pipe(transform)
 
-    # Validate the schema
-    lf: pl.LazyFrame = lf.match_to_schema(CLEANED_SCHEMA)
+    logger.info("Validating schema and writing cleaned data to %r ...", output_path)
+    try:
+        lf.match_to_schema(CLEANED_SCHEMA).sink_parquet(output_path)
+    except pl.exceptions.SchemaError as e:
+        logger.exception("Schema validation failed: %s", e)
 
-    # Write cleaned data back to S3
-    lf.sink_parquet(output_path)
+    logger.info("Data cleaning completed successfully!")
 
 
 if __name__ == "__main__":
