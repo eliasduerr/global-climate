@@ -77,7 +77,7 @@ def main():
         "CLEANED_INPUT_PATH", "s3://interim/temperatures.parquet"
     )
     output_path: str = os.environ.get(
-        "FEATURES_OUTPUT_PATH", "s3://processed/temperatures.parquet"
+        "FEATURES_OUTPUT_PATH", "s3://processed/temperature-features.parquet"
     )
 
     logger.info("Reading cleaned data from %r ...", input_path)
