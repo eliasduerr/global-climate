@@ -36,5 +36,12 @@ services:
     build: ./services/ingest
     env_file: ./services/ingest/.env
 
+  clean:
+    depends_on:
+      ingest:
+        condition: service_completed_successfully
+    build: ./services/clean
+    env_file: ./services/clean/.env
+
 volumes:
   minio_data:
