@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+import logging
 import os
 
 import polars as pl
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger: logging.Logger = logging.getLogger(__name__)
 
 CLEANED_SCHEMA = pl.Schema(
     {
@@ -29,6 +37,7 @@ FEATURES_SCHEMA = pl.Schema(
 
 
 def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
+    logger.info("Calculating features ...")
     return (
         lf.select(
             pl.col("dt"),
@@ -71,17 +80,19 @@ def main():
         "FEATURES_OUTPUT_PATH", "s3://processed/temperatures.parquet"
     )
 
-    # Read raw data from S3
+    logger.info("Reading cleaned data from %r ...", input_path)
     lf: pl.LazyFrame = pl.scan_parquet(input_path, schema=CLEANED_SCHEMA)
 
     # Apply transformations
     lf: pl.LazyFrame = lf.pipe(transform)
 
-    # Validate the schema
-    lf: pl.LazyFrame = lf.match_to_schema(FEATURES_SCHEMA)
+    logger.info("Validating schema and writing features to %r ...", output_path)
+    try:
+        lf.match_to_schema(FEATURES_SCHEMA).sink_parquet(output_path)
+    except pl.exceptions.SchemaError as e:
+        logger.exception("Schema validation failed: %s", e)
 
-    # Write cleaned data back to S3
-    lf.sink_parquet(output_path)
+    logger.info("Feature calculation completed successfully!")
 
 
 if __name__ == "__main__":
