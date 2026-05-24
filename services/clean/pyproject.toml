@@ -7,3 +7,15 @@ requires-python = ">=3.13"
 dependencies = [
     "polars>=1.41.0",
 ]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.152.9",
+    "pytest>=9.0.3",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = [
+    "slow: property-based / long-running tests (deselect with '-m \"not slow\"')",
+]
