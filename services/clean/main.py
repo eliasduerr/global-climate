@@ -5,6 +5,31 @@ import os
 import polars as pl
 
 
+RAW_SCHEMA = pl.Schema(
+    {
+        "dt": pl.Utf8,
+        "AverageTemperature": pl.Float64,
+        "AverageTemperatureUncertainty": pl.Float64,
+        "City": pl.Utf8,
+        "Country": pl.Utf8,
+        "Latitude": pl.Utf8,
+        "Longitude": pl.Utf8,
+    }
+)
+
+CLEANED_SCHEMA = pl.Schema(
+    {
+        "dt": pl.Date,
+        "AverageTemperature": pl.Float64,
+        "AverageTemperatureUncertainty": pl.Float64,
+        "City": pl.Categorical(),
+        "Country": pl.Categorical(),
+        "Latitude": pl.Float64,
+        "Longitude": pl.Float64,
+    }
+)
+
+
 def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
     return (
         lf
@@ -50,14 +75,18 @@ def main():
     output_path: str = os.environ.get(
         "CLEAN_OUTPUT_PATH", default="s3://interim/temperatures.parquet"
     )
+
     # Read raw data from S3
-    (
-        pl.scan_parquet(input_path)
-        # Apply transformations
-        .pipe(transform)
-        # Write cleaned data back to S3
-        .sink_parquet(output_path)
-    )
+    lf: pl.LazyFrame = pl.scan_parquet(input_path, schema=RAW_SCHEMA)
+
+    # Apply transformations
+    lf: pl.LazyFrame = lf.pipe(transform)
+
+    # Validate the schema
+    lf: pl.LazyFrame = lf.match_to_schema(CLEANED_SCHEMA)
+
+    # Write cleaned data back to S3
+    lf.sink_parquet(output_path)
 
 
 if __name__ == "__main__":
