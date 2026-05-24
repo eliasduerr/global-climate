@@ -43,5 +43,12 @@ services:
     build: ./services/clean
     env_file: ./services/clean/.env
 
+  features:
+    depends_on:
+      clean:
+        condition: service_completed_successfully
+    build: ./services/features
+    env_file: ./services/features/.env
+
 volumes:
   minio_data:
