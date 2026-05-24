@@ -92,10 +92,14 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "kagglehub", extra = ["polars-datasets"] },
+    { name = "polars" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "kagglehub", extras = ["polars-datasets"], specifier = ">=1.0.1" }]
+requires-dist = [
+    { name = "kagglehub", extras = ["polars-datasets"], specifier = ">=1.0.1" },
+    { name = "polars", specifier = ">=1.41.0" },
+]
 
 [[package]]
 name = "kagglehub"
