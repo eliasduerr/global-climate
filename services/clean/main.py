@@ -5,15 +5,9 @@ import os
 import polars as pl
 
 
-def main():
-    input_path: str = os.environ.get("RAW_INPUT_PATH", default="s3://raw/temperatures.parquet")
-    output_path: str = os.environ.get(
-        "CLEAN_OUTPUT_PATH", default="s3://interim/temperatures.parquet"
-    )
-
-    (
-        # Read raw data from S3
-        pl.scan_parquet(input_path)
+def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
+    return (
+        lf
         # Cast data types for better performance
         .with_columns(
             pl.col("dt").str.to_date("%Y-%m-%d"),
@@ -46,6 +40,21 @@ def main():
         )
         # Remove missing values (after interpolation)
         .drop_nulls()
+    )
+
+
+def main():
+    input_path: str = os.environ.get(
+        "RAW_INPUT_PATH", default="s3://raw/temperatures.parquet"
+    )
+    output_path: str = os.environ.get(
+        "CLEAN_OUTPUT_PATH", default="s3://interim/temperatures.parquet"
+    )
+    # Read raw data from S3
+    (
+        pl.scan_parquet(input_path)
+        # Apply transformations
+        .pipe(transform)
         # Write cleaned data back to S3
         .sink_parquet(output_path)
     )
