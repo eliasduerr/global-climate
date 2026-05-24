@@ -121,14 +121,13 @@ def test_groups_are_computed_independently():
 
 def test_year_over_year_change_matches_twelve_month_lag():
     dates = _monthly_dates(_MIN_GROUP_SIZE + 24)
-    INPUT_LF = _cleaned_lf(
-        [_cleaned_row(d, float(i)) for i, d in enumerate(dates)]
-    )
+    INPUT_LF = _cleaned_lf([_cleaned_row(d, float(i)) for i, d in enumerate(dates)])
     output_df = transform(INPUT_LF).collect().sort("dt")
 
     yoy_values = output_df["YearOverYearChange"].to_list()
     assert yoy_values, "expected at least one surviving row"
     assert all(v == pytest.approx(12.0) for v in yoy_values)
+
 
 _dt_value = st.dates(min_value=dt.date(1850, 1, 1), max_value=dt.date(2020, 12, 31))
 _temperature = st.floats(
