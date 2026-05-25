@@ -22,16 +22,17 @@ resource "aws_ecr_lifecycle_policy" "service" {
   for_each   = aws_ecr_repository.service
   repository = each.value.name
 
+  # ONLY FOR DEMO PURPOSES, you probably want to keep more than 3 images in production.
   policy = jsonencode({
     rules = [
       {
         rulePriority = 1
-        description  = "Keep last 10 tagged images"
+        description  = "Keep last 3 tagged images"
         selection = {
           tagStatus     = "tagged"
           tagPatternList = ["*"]
           countType     = "imageCountMoreThan"
-          countNumber   = 10
+          countNumber   = 3
         }
         action = { type = "expire" }
       },
