@@ -1,0 +1,42 @@
+name: Build & Push Docker Images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.eu-central-1.amazonaws.com
+  ECR_NAMESPACE: global-climate
+
+jobs:
+  build:
+    name: build & push (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ingest, clean, features]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push
+        run: |
+          IMAGE=${ECR_REGISTRY}/${ECR_NAMESPACE}/${{ matrix.service }}
+          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest services/${{ matrix.service }}
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
