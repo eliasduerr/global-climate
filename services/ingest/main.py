@@ -3,15 +3,9 @@ from __future__ import annotations
 import logging
 import os
 
+import boto3
 import polars as pl
 from kagglehub import KaggleDatasetAdapter, dataset_load
-
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
-logger: logging.Logger = logging.getLogger(__name__)
 
 RAW_SCHEMA = pl.Schema(
     {
@@ -25,8 +19,36 @@ RAW_SCHEMA = pl.Schema(
     }
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger: logging.Logger = logging.getLogger(__name__)
+
+ssm = boto3.client("ssm")
+
+
+def _get_kaggle_token_from_ssm() -> None:
+    if os.environ.get("KAGGLE_API_TOKEN"):
+        msg = "KAGGLE_API_TOKEN environment variable is already set. Skipping retrieval from SSM."
+        logger.warning(msg)
+        return None
+
+    param_name: str | None = os.environ.get("KAGGLE_TOKEN_PARAM")
+    if not param_name:
+        msg = "KAGGLE_TOKEN_PARAM environment variable is not set. Skipping retrieval from SSM."
+        logger.warning(msg)
+        return None
+
+    response: dict[str, dict[str, str]] = ssm.get_parameter(
+        Name=param_name, WithDecryption=True
+    )
+    os.environ["KAGGLE_API_TOKEN"] = response["Parameter"]["Value"]
+
 
 def main() -> None:
+    _get_kaggle_token_from_ssm()
+
     dataset = os.environ.get(
         "KAGGLE_DATASET",
         default="berkeleyearth/climate-change-earth-surface-temperature-data",
