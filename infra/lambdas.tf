@@ -15,6 +15,12 @@ locals {
     }
   }
 
+  ephemeral_storage_mb = {
+    ingest   = 4096
+    clean    = 2048
+    features = 2048
+  }
+
   default_image_tag = "latest"
 }
 
@@ -124,12 +130,16 @@ resource "aws_lambda_function" "service" {
   memory_size = 3008
   timeout     = 600
 
+  ephemeral_storage {
+    size = local.ephemeral_storage_mb[each.key]
+  }
+
   environment {
     variables = merge(
       { DATA_BUCKET = aws_s3_bucket.data.id },
       each.key == "ingest" ? {
         KAGGLE_TOKEN_PARAM = "/${var.project}/kaggle/token"
-        HOME = "/tmp"
+        HOME               = "/tmp"
       } : {},
     )
   }
