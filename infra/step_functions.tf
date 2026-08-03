@@ -17,19 +17,27 @@ resource "aws_iam_role" "sfn" {
   assume_role_policy = data.aws_iam_policy_document.sfn_assume.json
 }
 
-data "aws_iam_policy_document" "sfn_invoke_lambda" {
+data "aws_iam_policy_document" "sfn_batch" {
   statement {
-    actions = ["lambda:InvokeFunction"]
-    resources = flatten([
-      for fn in aws_lambda_function.service : [fn.arn, "${fn.arn}:*"]
-    ])
+    sid       = "SubmitAndObserve"
+    actions   = ["batch:SubmitJob", "batch:DescribeJobs", "batch:TerminateJob"]
+    resources = ["*"]
+  }
+  statement {
+    sid = "SyncCallback"
+    actions = [
+      "events:PutTargets",
+      "events:PutRule",
+      "events:DescribeRule",
+    ]
+    resources = ["arn:aws:events:${var.aws_region}:*:rule/StepFunctionsGetEventsForBatchJobsRule"]
   }
 }
 
-resource "aws_iam_role_policy" "sfn_invoke_lambda" {
-  name   = "${local.name}-invoke-lambda"
+resource "aws_iam_role_policy" "sfn_batch" {
+  name   = "${local.name}-batch"
   role   = aws_iam_role.sfn.id
-  policy = data.aws_iam_policy_document.sfn_invoke_lambda.json
+  policy = data.aws_iam_policy_document.sfn_batch.json
 }
 
 resource "aws_cloudwatch_log_group" "sfn" {
@@ -70,14 +78,14 @@ resource "aws_sfn_state_machine" "pipeline" {
     States = {
       Ingest = {
         Type     = "Task"
-        Resource = "arn:aws:states:::lambda:invoke"
+        Resource = "arn:aws:states:::batch:submitJob.sync"
         Parameters = {
-          FunctionName = aws_lambda_function.service["ingest"].arn
-          "Payload.$"  = "$"
+          JobName       = "ingest"
+          JobDefinition = aws_batch_job_definition.service["ingest"].arn
+          JobQueue      = aws_batch_job_queue.main.arn
         }
-        OutputPath = "$.Payload"
         Retry = [{
-          ErrorEquals     = ["States.TaskFailed", "Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"]
+          ErrorEquals     = ["States.TaskFailed", "Batch.BatchException", "Batch.AWSBatchException"]
           IntervalSeconds = 5
           MaxAttempts     = 3
           BackoffRate     = 2.0
@@ -86,14 +94,14 @@ resource "aws_sfn_state_machine" "pipeline" {
       }
       Clean = {
         Type     = "Task"
-        Resource = "arn:aws:states:::lambda:invoke"
+        Resource = "arn:aws:states:::batch:submitJob.sync"
         Parameters = {
-          FunctionName = aws_lambda_function.service["clean"].arn
-          "Payload.$"  = "$"
+          JobName       = "clean"
+          JobDefinition = aws_batch_job_definition.service["clean"].arn
+          JobQueue      = aws_batch_job_queue.main.arn
         }
-        OutputPath = "$.Payload"
         Retry = [{
-          ErrorEquals     = ["States.TaskFailed", "Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"]
+          ErrorEquals     = ["States.TaskFailed", "Batch.BatchException", "Batch.AWSBatchException"]
           IntervalSeconds = 5
           MaxAttempts     = 3
           BackoffRate     = 2.0
@@ -102,14 +110,14 @@ resource "aws_sfn_state_machine" "pipeline" {
       }
       Features = {
         Type     = "Task"
-        Resource = "arn:aws:states:::lambda:invoke"
+        Resource = "arn:aws:states:::batch:submitJob.sync"
         Parameters = {
-          FunctionName = aws_lambda_function.service["features"].arn
-          "Payload.$"  = "$"
+          JobName       = "features"
+          JobDefinition = aws_batch_job_definition.service["features"].arn
+          JobQueue      = aws_batch_job_queue.main.arn
         }
-        OutputPath = "$.Payload"
         Retry = [{
-          ErrorEquals     = ["States.TaskFailed", "Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"]
+          ErrorEquals     = ["States.TaskFailed", "Batch.BatchException", "Batch.AWSBatchException"]
           IntervalSeconds = 5
           MaxAttempts     = 3
           BackoffRate     = 2.0
