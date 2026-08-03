@@ -57,9 +57,13 @@ def main() -> None:
         "KAGGLE_DATASET_FILE", default="GlobalLandTemperaturesByCity.csv"
     )
 
-    output_path = os.environ.get(
-        "RAW_OUTPUT_PATH", default="s3://raw/temperatures.parquet"
+    bucket: str | None = os.environ.get("DATA_BUCKET")
+    default_output_path: str = (
+        f"s3://{bucket}/raw/temperatures.parquet"
+        if bucket
+        else "s3://raw/temperatures.parquet"
     )
+    output_path = os.environ.get("RAW_OUTPUT_PATH", default=default_output_path)
 
     logger.info("Loading %r from Kaggle dataset %r ...", source_file, dataset)
     lf: pl.LazyFrame = dataset_load(

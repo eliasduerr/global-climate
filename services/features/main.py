@@ -73,12 +73,19 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
 
 
 def main():
-    input_path: str = os.environ.get(
-        "CLEANED_INPUT_PATH", "s3://interim/temperatures.parquet"
+    bucket: str | None = os.environ.get("DATA_BUCKET")
+    default_input_path: str = (
+        f"s3://{bucket}/interim/temperatures.parquet"
+        if bucket
+        else "s3://interim/temperatures.parquet"
     )
-    output_path: str = os.environ.get(
-        "FEATURES_OUTPUT_PATH", "s3://processed/temperature-features.parquet"
+    default_output_path: str = (
+        f"s3://{bucket}/processed/temperature-features.parquet"
+        if bucket
+        else "s3://processed/temperature-features.parquet"
     )
+    input_path: str = os.environ.get("CLEANED_INPUT_PATH", default_input_path)
+    output_path: str = os.environ.get("FEATURES_OUTPUT_PATH", default_output_path)
 
     logger.info("Reading cleaned data from %r ...", input_path)
     lf: pl.LazyFrame = pl.scan_parquet(input_path, schema=CLEANED_SCHEMA)
