@@ -129,6 +129,7 @@ resource "aws_lambda_function" "service" {
       { DATA_BUCKET = aws_s3_bucket.data.id },
       each.key == "ingest" ? {
         KAGGLE_TOKEN_PARAM = "/${var.project}/kaggle/token"
+        HOME = "/tmp"
       } : {},
     )
   }
