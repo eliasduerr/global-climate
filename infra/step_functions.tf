@@ -45,7 +45,7 @@ resource "aws_iam_role_policy" "sfn_batch" {
 
 resource "aws_cloudwatch_log_group" "sfn" {
   name              = "/aws/vendedlogs/states/${local.name}"
-  retention_in_days = 1
+  retention_in_days = 14
 }
 
 data "aws_iam_policy_document" "sfn_logs" {
