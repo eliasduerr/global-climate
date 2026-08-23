@@ -123,6 +123,11 @@ data "aws_iam_policy_document" "ingest_ssm" {
   statement {
     actions   = ["kms:Decrypt"]
     resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.aws_region}.amazonaws.com"]
+    }
   }
 }
 
