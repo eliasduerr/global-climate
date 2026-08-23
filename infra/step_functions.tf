@@ -19,9 +19,12 @@ resource "aws_iam_role" "sfn" {
 
 data "aws_iam_policy_document" "sfn_batch" {
   statement {
-    sid       = "SubmitAndObserve"
-    actions   = ["batch:SubmitJob", "batch:DescribeJobs", "batch:TerminateJob"]
-    resources = ["*"]
+    sid     = "SubmitAndObserve"
+    actions = ["batch:SubmitJob", "batch:DescribeJobs", "batch:TerminateJob"]
+    resources = concat(
+      [aws_batch_job_queue.main.arn],
+      [for jd in aws_batch_job_definition.service : jd.arn],
+    )
   }
   statement {
     sid = "SyncCallback"
