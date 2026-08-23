@@ -205,6 +205,8 @@ resource "aws_batch_job_definition" "service" {
       [{ name = "DATA_BUCKET", value = aws_s3_bucket.data.id }],
       each.key == "ingest" ? [
         { name = "KAGGLE_TOKEN_PARAM", value = "/${var.project}/kaggle/token" },
+        # kagglehub writes to $HOME/.cache; /app isn't writable at runtime.
+        { name = "HOME", value = "/tmp" },
       ] : [],
     )
 
