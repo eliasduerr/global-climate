@@ -60,15 +60,33 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = [aws_route_table.public.id]
 }
 
+# Without an ingress block, the security group blocks all inward traffic.
 resource "aws_security_group" "task" {
   name        = "${var.project}-task"
-  description = "Egress-only Fargate task SG"
+  description = "Fargate task egress"
   vpc_id      = aws_vpc.main.id
 
+  # Allow outbound HTTPS requests
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Allow DNS resolution
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Allow DNS resolution for large requests
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
