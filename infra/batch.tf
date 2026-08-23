@@ -139,7 +139,7 @@ resource "aws_batch_compute_environment" "fargate" {
   compute_resources {
     type               = "FARGATE"
     max_vcpus          = 8
-    subnets            = [aws_subnet.public.id]
+    subnets            = [for s in aws_subnet.public : s.id]
     security_group_ids = [aws_security_group.task.id]
   }
 }

@@ -17,13 +17,19 @@ resource "aws_internet_gateway" "igw" {
 }
 
 resource "aws_subnet" "public" {
+  for_each = {
+    a = "10.0.1.0/24"
+    b = "10.0.2.0/24"
+    c = "10.0.3.0/24"
+  }
+
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.aws_region}a"
+  cidr_block              = each.value
+  availability_zone       = "${var.aws_region}${each.key}"
   map_public_ip_on_launch = false
 
   tags = {
-    Name = "${var.project}-public"
+    Name = "${var.project}-public-${each.key}"
   }
 }
 
@@ -41,7 +47,9 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
+  for_each = aws_subnet.public
+
+  subnet_id      = each.value.id
   route_table_id = aws_route_table.public.id
 }
 
