@@ -30,12 +30,12 @@ def _cleaned_row(
 ) -> dict[str, Any]:
     return {
         "dt": dt_val,
-        "AverageTemperature": avg,
-        "AverageTemperatureUncertainty": unc,
-        "City": city,
-        "Country": country,
-        "Latitude": lat,
-        "Longitude": lon,
+        "avg_temperature": avg,
+        "avg_temperature_uncertainty": unc,
+        "city": city,
+        "country": country,
+        "latitude": lat,
+        "longitude": lon,
     }
 
 
@@ -54,12 +54,12 @@ def _features_row(
 ) -> dict[str, Any]:
     return {
         "dt": dt_val,
-        "Country": country,
-        "City": city,
-        "30YearBaselineTemperature": baseline,
-        "10YearTemperatureStdDev": stddev,
-        "YearOverYearChange": yoy,
-        "TemperatureAnomaly": anomaly,
+        "country": country,
+        "city": city,
+        "baseline_temperature_30y": baseline,
+        "temperature_stddev_10y": stddev,
+        "year_over_year_change": yoy,
+        "temperature_anomaly": anomaly,
     }
 
 
@@ -103,7 +103,7 @@ def test_groups_are_computed_independently():
         rows.append(_cleaned_row(d, 5.0, city="Berlin", country="Germany"))
         rows.append(_cleaned_row(d, 20.0, city="Lima", country="Peru"))
 
-    output_df = transform(_cleaned_lf(rows)).collect().sort(["Country", "City"])
+    output_df = transform(_cleaned_lf(rows)).collect().sort(["country", "city"])
 
     last_date = dates[-1]
     EXPECTED_DF = (
@@ -114,7 +114,7 @@ def test_groups_are_computed_independently():
             ]
         )
         .collect()
-        .sort(["Country", "City"])
+        .sort(["country", "city"])
     )
     assert_frame_equal(output_df, EXPECTED_DF)
 
@@ -124,7 +124,7 @@ def test_year_over_year_change_matches_twelve_month_lag():
     INPUT_LF = _cleaned_lf([_cleaned_row(d, float(i)) for i, d in enumerate(dates)])
     output_df = transform(INPUT_LF).collect().sort("dt")
 
-    yoy_values = output_df["YearOverYearChange"].to_list()
+    yoy_values = output_df["year_over_year_change"].to_list()
     assert yoy_values, "expected at least one surviving row"
     assert all(v == pytest.approx(12.0) for v in yoy_values)
 
@@ -149,21 +149,21 @@ _cleaned_lazyframes = dataframes(
     cols=[
         column("dt", dtype=pl.Date, strategy=_dt_value, allow_null=False),
         column(
-            "AverageTemperature",
+            "avg_temperature",
             dtype=pl.Float64,
             strategy=_temperature,
             allow_null=False,
         ),
         column(
-            "AverageTemperatureUncertainty",
+            "avg_temperature_uncertainty",
             dtype=pl.Float64,
             strategy=_uncertainty,
             allow_null=False,
         ),
-        column("City", dtype=pl.Categorical(), strategy=_city, allow_null=False),
-        column("Country", dtype=pl.Categorical(), strategy=_country, allow_null=False),
-        column("Latitude", dtype=pl.Float64, strategy=_latitude, allow_null=False),
-        column("Longitude", dtype=pl.Float64, strategy=_longitude, allow_null=False),
+        column("city", dtype=pl.Categorical(), strategy=_city, allow_null=False),
+        column("country", dtype=pl.Categorical(), strategy=_country, allow_null=False),
+        column("latitude", dtype=pl.Float64, strategy=_latitude, allow_null=False),
+        column("longitude", dtype=pl.Float64, strategy=_longitude, allow_null=False),
     ],
     min_size=0,
     max_size=50,

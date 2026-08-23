@@ -15,23 +15,23 @@ logger: logging.Logger = logging.getLogger(__name__)
 CLEANED_SCHEMA = pl.Schema(
     {
         "dt": pl.Date,
-        "AverageTemperature": pl.Float64,
-        "AverageTemperatureUncertainty": pl.Float64,
-        "City": pl.Categorical(),
-        "Country": pl.Categorical(),
-        "Latitude": pl.Float64,
-        "Longitude": pl.Float64,
+        "avg_temperature": pl.Float64,
+        "avg_temperature_uncertainty": pl.Float64,
+        "city": pl.Categorical(),
+        "country": pl.Categorical(),
+        "latitude": pl.Float64,
+        "longitude": pl.Float64,
     }
 )
 FEATURES_SCHEMA = pl.Schema(
     {
         "dt": pl.Date,
-        "Country": pl.Categorical(),
-        "City": pl.Categorical(),
-        "30YearBaselineTemperature": pl.Float64,
-        "10YearTemperatureStdDev": pl.Float64,
-        "YearOverYearChange": pl.Float64,
-        "TemperatureAnomaly": pl.Float64,
+        "country": pl.Categorical(),
+        "city": pl.Categorical(),
+        "baseline_temperature_30y": pl.Float64,
+        "temperature_stddev_10y": pl.Float64,
+        "year_over_year_change": pl.Float64,
+        "temperature_anomaly": pl.Float64,
     }
 )
 
@@ -41,31 +41,31 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
     return (
         lf.select(
             pl.col("dt"),
-            pl.col("Country"),
-            pl.col("City"),
-            pl.col("AverageTemperature")
+            pl.col("country"),
+            pl.col("city"),
+            pl.col("avg_temperature")
             .sort_by("dt")
             .rolling_mean(window_size=360)
-            .over(["Country", "City"])
-            .alias("30YearBaselineTemperature"),
-            pl.col("AverageTemperature")
+            .over(["country", "city"])
+            .alias("baseline_temperature_30y"),
+            pl.col("avg_temperature")
             .sort_by("dt")
             .rolling_std(window_size=120)
-            .over(["Country", "City"])
-            .alias("10YearTemperatureStdDev"),
+            .over(["country", "city"])
+            .alias("temperature_stddev_10y"),
             (
-                pl.col("AverageTemperature").sort_by("dt")
-                - pl.col("AverageTemperature").sort_by("dt").shift(12)
+                pl.col("avg_temperature").sort_by("dt")
+                - pl.col("avg_temperature").sort_by("dt").shift(12)
             )
-            .over(["Country", "City"])
-            .alias("YearOverYearChange"),
+            .over(["country", "city"])
+            .alias("year_over_year_change"),
             (
-                pl.col("AverageTemperature")
-                - pl.col("AverageTemperature")
+                pl.col("avg_temperature")
+                - pl.col("avg_temperature")
                 .sort_by("dt")
                 .rolling_mean(window_size=360)
-                .over(["Country", "City"])
-            ).alias("TemperatureAnomaly"),
+                .over(["country", "city"])
+            ).alias("temperature_anomaly"),
         )
         # Drop nulls from rolling calculations
         .drop_nulls()

@@ -26,12 +26,12 @@ RAW_SCHEMA = pl.Schema(
 CLEANED_SCHEMA = pl.Schema(
     {
         "dt": pl.Date,
-        "AverageTemperature": pl.Float64,
-        "AverageTemperatureUncertainty": pl.Float64,
-        "City": pl.Categorical(),
-        "Country": pl.Categorical(),
-        "Latitude": pl.Float64,
-        "Longitude": pl.Float64,
+        "avg_temperature": pl.Float64,
+        "avg_temperature_uncertainty": pl.Float64,
+        "city": pl.Categorical(),
+        "country": pl.Categorical(),
+        "latitude": pl.Float64,
+        "longitude": pl.Float64,
     }
 )
 
@@ -39,36 +39,45 @@ CLEANED_SCHEMA = pl.Schema(
 def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
     logger.info("Applying transformations ...")
     return (
-        lf
+        lf.rename(
+            {
+                "AverageTemperature": "avg_temperature",
+                "AverageTemperatureUncertainty": "avg_temperature_uncertainty",
+                "City": "city",
+                "Country": "country",
+                "Latitude": "latitude",
+                "Longitude": "longitude",
+            }
+        )
         # Cast data types for better performance
         .with_columns(
             pl.col("dt").str.to_date("%Y-%m-%d"),
-            pl.col("City").cast(pl.Categorical),
-            pl.col("Country").cast(pl.Categorical),
+            pl.col("city").cast(pl.Categorical),
+            pl.col("country").cast(pl.Categorical),
         )
         # Remove unreliable years
         .filter(pl.col("dt").dt.year() >= 1850)
         # Remove outliers
         .with_columns(
-            pl.when(pl.col("AverageTemperatureUncertainty") > 2.0)
+            pl.when(pl.col("avg_temperature_uncertainty") > 2.0)
             .then(None)
-            .otherwise(pl.col("AverageTemperature"))
-            .alias("AverageTemperature")
+            .otherwise(pl.col("avg_temperature"))
+            .alias("avg_temperature")
         )
         # Interpolate missing values
         .with_columns(
-            pl.col("AverageTemperature").interpolate_by("dt").over(["City", "Country"])
+            pl.col("avg_temperature").interpolate_by("dt").over(["city", "country"])
         )
         # Cast coordinates to signed floats
         .with_columns(
             (
-                pl.col("Latitude").str.strip_chars_end("NS").cast(pl.Float64)
-                * pl.when(pl.col("Latitude").str.ends_with("S")).then(-1).otherwise(1)
-            ).alias("Latitude"),
+                pl.col("latitude").str.strip_chars_end("NS").cast(pl.Float64)
+                * pl.when(pl.col("latitude").str.ends_with("S")).then(-1).otherwise(1)
+            ).alias("latitude"),
             (
-                pl.col("Longitude").str.strip_chars_end("EW").cast(pl.Float64)
-                * pl.when(pl.col("Longitude").str.ends_with("W")).then(-1).otherwise(1)
-            ).alias("Longitude"),
+                pl.col("longitude").str.strip_chars_end("EW").cast(pl.Float64)
+                * pl.when(pl.col("longitude").str.ends_with("W")).then(-1).otherwise(1)
+            ).alias("longitude"),
         )
         # Remove missing values (after interpolation)
         .drop_nulls()

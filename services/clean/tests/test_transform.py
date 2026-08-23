@@ -50,12 +50,12 @@ def _cleaned_row(
 ) -> dict[str, Any]:
     return {
         "dt": dt_str,
-        "AverageTemperature": avg,
-        "AverageTemperatureUncertainty": unc,
-        "City": city,
-        "Country": country,
-        "Latitude": lat,
-        "Longitude": lon,
+        "avg_temperature": avg,
+        "avg_temperature_uncertainty": unc,
+        "city": city,
+        "country": country,
+        "latitude": lat,
+        "longitude": lon,
     }
 
 
@@ -91,7 +91,7 @@ def test_coordinate_signs_for_all_hemispheres():
             _raw_row("1900-01-01", 1.0, 0.1, city="S", lat="10.0S", lon="20.0W"),
         ]
     )
-    output_df = transform(INPUT_LF).collect().sort("City")
+    output_df = transform(INPUT_LF).collect().sort("city")
 
     EXPECTED_DF: pl.LazyFrame = _cleaned_lf(
         [
@@ -222,10 +222,10 @@ def test_all_output_dates_are_post_1850(input_lf: pl.LazyFrame) -> None:
 def test_coordinates_stay_within_geographic_bounds(input_lf: pl.LazyFrame) -> None:
     output_df = transform(input_lf).collect()
     if output_df.height > 0:
-        assert output_df["Latitude"].min() >= -90.0
-        assert output_df["Latitude"].max() <= 90.0
-        assert output_df["Longitude"].min() >= -180.0
-        assert output_df["Longitude"].max() <= 180.0
+        assert output_df["latitude"].min() >= -90.0
+        assert output_df["latitude"].max() <= 90.0
+        assert output_df["longitude"].min() >= -180.0
+        assert output_df["longitude"].max() <= 180.0
 
 
 @pytest.mark.slow
