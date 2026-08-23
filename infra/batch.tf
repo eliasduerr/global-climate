@@ -169,6 +169,10 @@ resource "aws_batch_job_definition" "service" {
   type                  = "container"
   platform_capabilities = ["FARGATE"]
 
+  timeout {
+    attempt_duration_seconds = 1800
+  }
+
   container_properties = jsonencode({
     image            = "${aws_ecr_repository.service[each.key].repository_url}@${data.aws_ecr_image.service[each.key].image_digest}"
     jobRoleArn       = aws_iam_role.task[each.key].arn
