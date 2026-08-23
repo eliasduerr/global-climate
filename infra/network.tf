@@ -1,3 +1,4 @@
+# In production, one would pick a central CIDR block to avoid collision and enable flow logs.
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
@@ -8,6 +9,7 @@ resource "aws_vpc" "main" {
   }
 }
 
+# In production, one would replace this with a NAT gateway in a public subnet.
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 
@@ -16,6 +18,7 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
+# In production, one would make these private.
 resource "aws_subnet" "public" {
   for_each = {
     a = "10.0.1.0/24"
@@ -33,6 +36,7 @@ resource "aws_subnet" "public" {
   }
 }
 
+# In production, one would route traffic to a NAT gateway in a private subnet instead of the internet gateway.
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -53,6 +57,7 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+# In production, one would add interfaces for internal AWS service endpoints (ECR, SSM, S3).
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${var.aws_region}.s3"
