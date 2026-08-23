@@ -9,3 +9,11 @@ dependencies = [
     "kagglehub[polars-datasets]>=1.0.1",
     "polars>=1.41.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

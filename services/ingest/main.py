@@ -25,8 +25,6 @@ logging.basicConfig(
 )
 logger: logging.Logger = logging.getLogger(__name__)
 
-ssm = boto3.client("ssm")
-
 
 def _get_kaggle_token_from_ssm() -> None:
     if os.environ.get("KAGGLE_API_TOKEN"):
@@ -40,6 +38,7 @@ def _get_kaggle_token_from_ssm() -> None:
         logger.warning(msg)
         return None
 
+    ssm = boto3.client("ssm")
     response: dict[str, dict[str, str]] = ssm.get_parameter(
         Name=param_name, WithDecryption=True
     )
