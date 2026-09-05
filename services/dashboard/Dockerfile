@@ -21,7 +21,8 @@ FROM python:3.13-slim-bookworm AS runtime
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    HOME=/tmp
 
 RUN groupadd --system app && useradd --system --gid app --home /app app
 WORKDIR /app
