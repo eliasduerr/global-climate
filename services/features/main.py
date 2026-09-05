@@ -12,6 +12,10 @@ logging.basicConfig(
 )
 logger: logging.Logger = logging.getLogger(__name__)
 
+# Reference period used by Berkeley Earth and NASA GISS.
+REFERENCE_START = 1951
+REFERENCE_END = 1980
+
 CLEANED_SCHEMA = pl.Schema(
     {
         "dt": pl.Date,
@@ -25,12 +29,12 @@ CLEANED_SCHEMA = pl.Schema(
 )
 FEATURES_SCHEMA = pl.Schema(
     {
-        "dt": pl.Date,
+        "year": pl.Int32,
         "country": pl.Categorical(),
         "city": pl.Categorical(),
-        "baseline_temperature_30y": pl.Float64,
-        "temperature_stddev_10y": pl.Float64,
-        "year_over_year_change": pl.Float64,
+        "latitude": pl.Float64,
+        "longitude": pl.Float64,
+        "annual_temperature": pl.Float64,
         "temperature_anomaly": pl.Float64,
     }
 )
@@ -38,37 +42,30 @@ FEATURES_SCHEMA = pl.Schema(
 
 def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
     logger.info("Calculating features ...")
+    in_reference = pl.col("year").is_between(REFERENCE_START, REFERENCE_END)
     return (
-        lf.select(
-            pl.col("dt"),
-            pl.col("country"),
-            pl.col("city"),
-            pl.col("avg_temperature")
-            .sort_by("dt")
-            .rolling_mean(window_size=360)
-            .over(["country", "city"])
-            .alias("baseline_temperature_30y"),
-            pl.col("avg_temperature")
-            .sort_by("dt")
-            .rolling_std(window_size=120)
-            .over(["country", "city"])
-            .alias("temperature_stddev_10y"),
-            (
-                pl.col("avg_temperature").sort_by("dt")
-                - pl.col("avg_temperature").sort_by("dt").shift(12)
-            )
-            .over(["country", "city"])
-            .alias("year_over_year_change"),
-            (
-                pl.col("avg_temperature")
-                - pl.col("avg_temperature")
-                .sort_by("dt")
-                .rolling_mean(window_size=360)
-                .over(["country", "city"])
-            ).alias("temperature_anomaly"),
+        lf.group_by(pl.col("dt").dt.year().alias("year"), "country", "city")
+        .agg(
+            pl.col("latitude").first(),
+            pl.col("longitude").first(),
+            pl.col("avg_temperature").mean().alias("annual_temperature"),
+            pl.len().alias("n_months"),
         )
-        # Drop nulls from rolling calculations
-        .drop_nulls()
+        # Averaging 12 months cancels the seasonal cycle, so only complete years count.
+        .filter(pl.col("n_months") == 12)
+        .drop("n_months")
+        .with_columns(
+            (
+                pl.col("annual_temperature")
+                - pl.col("annual_temperature")
+                .filter(in_reference)
+                .mean()
+                .over(["country", "city"])
+            ).alias("temperature_anomaly")
+        )
+        # Cities without data in the reference period have no baseline.
+        .drop_nulls("temperature_anomaly")
+        .sort("country", "city", "year")
     )
 
 
@@ -80,9 +77,9 @@ def main():
         else "s3://interim/temperatures.parquet"
     )
     default_output_path: str = (
-        f"s3://{bucket}/processed/temperature-features.parquet"
+        f"s3://{bucket}/processed/city-annual.parquet"
         if bucket
-        else "s3://processed/temperature-features.parquet"
+        else "s3://processed/city-annual.parquet"
     )
     input_path: str = os.environ.get("CLEANED_INPUT_PATH", default_input_path)
     output_path: str = os.environ.get("FEATURES_OUTPUT_PATH", default_output_path)

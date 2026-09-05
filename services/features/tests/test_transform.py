@@ -10,13 +10,16 @@ from hypothesis import strategies as st
 from polars.testing import assert_frame_equal
 from polars.testing.parametric import column, dataframes
 
-from main import CLEANED_SCHEMA, FEATURES_SCHEMA, transform
+from main import (
+    CLEANED_SCHEMA,
+    FEATURES_SCHEMA,
+    REFERENCE_END,
+    REFERENCE_START,
+    transform,
+)
 
 if TYPE_CHECKING:
     from typing import Any
-
-
-_MIN_GROUP_SIZE = 360
 
 
 def _cleaned_row(
@@ -44,21 +47,21 @@ def _cleaned_lf(rows: list[dict[str, Any]]) -> pl.LazyFrame:
 
 
 def _features_row(
-    dt_val: dt.date,
-    baseline: float,
-    stddev: float,
-    yoy: float,
+    year: int,
+    temperature: float,
     anomaly: float,
     city: str = "Berlin",
     country: str = "Germany",
+    lat: float = 52.24,
+    lon: float = 13.04,
 ) -> dict[str, Any]:
     return {
-        "dt": dt_val,
+        "year": year,
         "country": country,
         "city": city,
-        "baseline_temperature_30y": baseline,
-        "temperature_stddev_10y": stddev,
-        "year_over_year_change": yoy,
+        "latitude": lat,
+        "longitude": lon,
+        "annual_temperature": temperature,
         "temperature_anomaly": anomaly,
     }
 
@@ -67,8 +70,10 @@ def _features_lf(rows: list[dict[str, Any]]) -> pl.LazyFrame:
     return pl.LazyFrame(rows, schema=FEATURES_SCHEMA)
 
 
-def _monthly_dates(n: int, start: dt.date = dt.date(1900, 1, 1)) -> list[dt.date]:
-    return [start + dt.timedelta(days=30 * i) for i in range(n)]
+def _monthly_dates(start_year: int, end_year: int) -> list[dt.date]:
+    return [
+        dt.date(y, m, 1) for y in range(start_year, end_year + 1) for m in range(1, 13)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -76,20 +81,49 @@ def _monthly_dates(n: int, start: dt.date = dt.date(1900, 1, 1)) -> list[dt.date
 # ---------------------------------------------------------------------------
 
 
-def test_constant_temperature_yields_zero_anomaly_and_change():
-    dates = _monthly_dates(_MIN_GROUP_SIZE + 40)
-    INPUT_LF = _cleaned_lf([_cleaned_row(d, 10.0) for d in dates])
-
-    output_df = transform(INPUT_LF).collect()
+def test_constant_temperature_yields_zero_anomaly():
+    dates = _monthly_dates(1950, 1985)
+    output_df = transform(_cleaned_lf([_cleaned_row(d, 10.0) for d in dates])).collect()
 
     EXPECTED_DF = _features_lf(
-        [_features_row(d, 10.0, 0.0, 0.0, 0.0) for d in dates[_MIN_GROUP_SIZE - 1 :]]
+        [_features_row(y, 10.0, 0.0) for y in range(1950, 1986)]
     ).collect()
     assert_frame_equal(output_df, EXPECTED_DF)
 
 
-def test_insufficient_history_produces_empty_output():
-    dates = _monthly_dates(_MIN_GROUP_SIZE - 1)
+def test_seasonal_cycle_does_not_leak_into_anomaly():
+    # +/-10 degrees seasonal swing around a constant 10 degrees.
+    dates = _monthly_dates(1950, 1985)
+    rows = [
+        _cleaned_row(d, 10.0 + (10.0 if d.month in (6, 7, 8) else -10.0 / 3))
+        for d in dates
+    ]
+    output_df = transform(_cleaned_lf(rows)).collect()
+
+    assert output_df["temperature_anomaly"].abs().max() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_anomaly_is_relative_to_reference_period_mean():
+    # 1 degree per year ramp: reference mean sits at the 1965.5 midpoint.
+    dates = _monthly_dates(1950, 1985)
+    rows = [_cleaned_row(d, float(d.year)) for d in dates]
+    output_df = transform(_cleaned_lf(rows)).collect()
+
+    expected = {y: y - (REFERENCE_START + REFERENCE_END) / 2 for y in range(1950, 1986)}
+    for year, anomaly in output_df.select("year", "temperature_anomaly").iter_rows():
+        assert anomaly == pytest.approx(expected[year])
+
+
+def test_incomplete_years_are_dropped():
+    dates = [d for d in _monthly_dates(1950, 1985) if d != dt.date(1960, 6, 1)]
+    output_df = transform(_cleaned_lf([_cleaned_row(d, 10.0) for d in dates])).collect()
+
+    assert 1960 not in output_df["year"].to_list()
+    assert output_df.height == 35
+
+
+def test_no_reference_data_produces_empty_output():
+    dates = _monthly_dates(1981, 2000)
     output_df = transform(_cleaned_lf([_cleaned_row(d, 10.0) for d in dates])).collect()
 
     assert output_df.is_empty()
@@ -97,36 +131,18 @@ def test_insufficient_history_produces_empty_output():
 
 
 def test_groups_are_computed_independently():
-    dates = _monthly_dates(_MIN_GROUP_SIZE)
     rows: list[dict[str, Any]] = []
-    for d in dates:
+    for d in _monthly_dates(1951, 1980):
         rows.append(_cleaned_row(d, 5.0, city="Berlin", country="Germany"))
-        rows.append(_cleaned_row(d, 20.0, city="Lima", country="Peru"))
-
-    output_df = transform(_cleaned_lf(rows)).collect().sort(["country", "city"])
-
-    last_date = dates[-1]
-    EXPECTED_DF = (
-        _features_lf(
-            [
-                _features_row(last_date, 5.0, 0.0, 0.0, 0.0, "Berlin", "Germany"),
-                _features_row(last_date, 20.0, 0.0, 0.0, 0.0, "Lima", "Peru"),
-            ]
+        rows.append(
+            _cleaned_row(d, 20.0, city="Lima", country="Peru", lat=-12.0, lon=-77.0)
         )
-        .collect()
-        .sort(["country", "city"])
-    )
-    assert_frame_equal(output_df, EXPECTED_DF)
 
+    output_df = transform(_cleaned_lf(rows)).collect()
 
-def test_year_over_year_change_matches_twelve_month_lag():
-    dates = _monthly_dates(_MIN_GROUP_SIZE + 24)
-    INPUT_LF = _cleaned_lf([_cleaned_row(d, float(i)) for i, d in enumerate(dates)])
-    output_df = transform(INPUT_LF).collect().sort("dt")
-
-    yoy_values = output_df["year_over_year_change"].to_list()
-    assert yoy_values, "expected at least one surviving row"
-    assert all(v == pytest.approx(12.0) for v in yoy_values)
+    assert output_df["temperature_anomaly"].abs().max() == pytest.approx(0.0)
+    per_city = output_df.group_by("city").agg(pl.col("annual_temperature").mean())
+    assert dict(per_city.iter_rows()) == {"Berlin": 5.0, "Lima": 20.0}
 
 
 _dt_value = st.dates(min_value=dt.date(1850, 1, 1), max_value=dt.date(2020, 12, 31))
@@ -195,11 +211,11 @@ def test_transform_is_non_amplifying(input_lf: pl.LazyFrame) -> None:
 
 @pytest.mark.slow
 @given(input_lf=_cleaned_lazyframes)
-def test_output_dates_are_subset_of_input_dates(input_lf: pl.LazyFrame) -> None:
+def test_output_years_are_subset_of_input_years(input_lf: pl.LazyFrame) -> None:
     input_df = input_lf.collect()
     output_df = transform(input_lf).collect()
     if output_df.is_empty():
         return
-    input_dates = set(input_df["dt"].to_list())
-    output_dates = set(output_df["dt"].to_list())
-    assert output_dates.issubset(input_dates)
+    input_years = set(input_df["dt"].dt.year().to_list())
+    output_years = set(output_df["year"].to_list())
+    assert output_years.issubset(input_years)
