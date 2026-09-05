@@ -2,8 +2,8 @@ resource "aws_glue_catalog_database" "main" {
   name = replace(var.project, "-", "_")
 }
 
-resource "aws_glue_catalog_table" "temperature_features" {
-  name          = "temperature_features"
+resource "aws_glue_catalog_table" "city_annual" {
+  name          = "city_annual"
   database_name = aws_glue_catalog_database.main.name
   table_type    = "EXTERNAL_TABLE"
 
@@ -22,8 +22,8 @@ resource "aws_glue_catalog_table" "temperature_features" {
     }
 
     columns {
-      name = "dt"
-      type = "date"
+      name = "year"
+      type = "int"
     }
     columns {
       name = "country"
@@ -34,15 +34,15 @@ resource "aws_glue_catalog_table" "temperature_features" {
       type = "string"
     }
     columns {
-      name = "baseline_temperature_30y"
+      name = "latitude"
       type = "double"
     }
     columns {
-      name = "temperature_stddev_10y"
+      name = "longitude"
       type = "double"
     }
     columns {
-      name = "year_over_year_change"
+      name = "annual_temperature"
       type = "double"
     }
     columns {
@@ -57,5 +57,5 @@ output "glue_database" {
 }
 
 output "glue_table" {
-  value = aws_glue_catalog_table.temperature_features.name
+  value = aws_glue_catalog_table.city_annual.name
 }
