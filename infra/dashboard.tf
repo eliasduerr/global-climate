@@ -68,7 +68,7 @@ resource "aws_iam_role" "dashboard_infrastructure" {
 
 resource "aws_iam_role_policy_attachment" "dashboard_infrastructure" {
   role       = aws_iam_role.dashboard_infrastructure.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonECSInfrastructureRolePolicyForExpressGatewayServices"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices"
 }
 
 # --- Logs ------------------------------------------------------------------
@@ -127,7 +127,8 @@ resource "aws_ecs_express_gateway_service" "dashboard" {
     container_port = 8080
 
     aws_logs_configuration {
-      log_group = aws_cloudwatch_log_group.dashboard.name
+      log_group         = aws_cloudwatch_log_group.dashboard.name
+      log_stream_prefix = "streamlit"
     }
 
     environment {
@@ -147,8 +148,10 @@ resource "aws_ecs_express_gateway_service" "dashboard" {
   }
 
   scaling_target {
-    min_task_count = 1
-    max_task_count = 2
+    min_task_count            = 1
+    max_task_count            = 2
+    auto_scaling_metric       = "AVERAGE_CPU"
+    auto_scaling_target_value = 60
   }
 
   depends_on = [
