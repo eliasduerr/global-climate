@@ -118,8 +118,8 @@ resource "aws_ecs_express_gateway_service" "dashboard" {
   infrastructure_role_arn = aws_iam_role.dashboard_infrastructure.arn
   task_role_arn           = aws_iam_role.dashboard_task.arn
 
-  cpu               = "256"
-  memory            = "512"
+  cpu               = "1024"
+  memory            = "2048"
   health_check_path = "/_stcore/health"
 
   primary_container {
