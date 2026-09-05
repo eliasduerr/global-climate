@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [ingest, clean, features]
+        service: [ingest, clean, features, dashboard]
     steps:
       - uses: actions/checkout@v4
 
