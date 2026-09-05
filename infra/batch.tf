@@ -138,8 +138,8 @@ resource "aws_iam_role_policy" "ingest_ssm" {
 }
 
 resource "aws_batch_compute_environment" "fargate" {
-  compute_environment_name = "${var.project}-fargate"
-  type                     = "MANAGED"
+  name = "${var.project}-fargate"
+  type = "MANAGED"
 
   compute_resources {
     type               = "FARGATE_SPOT"
