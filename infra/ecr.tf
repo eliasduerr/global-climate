@@ -1,6 +1,6 @@
 variable "services" {
   type    = set(string)
-  default = ["ingest", "clean", "features"]
+  default = ["ingest", "clean", "features", "dashboard"]
 }
 
 resource "aws_ecr_repository" "service" {
