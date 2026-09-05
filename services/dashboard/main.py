@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime as dt
 import os
 
 import altair as alt
@@ -8,128 +7,142 @@ import polars as pl
 import streamlit as st
 
 BUCKET = os.environ.get("DATA_BUCKET", "global-climate-data")
-PROCESSED_URI = f"s3://{BUCKET}/processed/temperature-features.parquet"
+PROCESSED_URI = os.environ.get(
+    "PROCESSED_URI", f"s3://{BUCKET}/processed/city-annual.parquet"
+)
+TREND_START = 1950
+WORLD_TOPOJSON = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
 
-# A few thousand points per city is well past Altair's default cap.
+# ~550k rows is past Altair's default 5000-row cap.
 alt.data_transformers.disable_max_rows()
 
-
-# Collecting the whole frame needs a few GB, so every query below stays lazy and
-# only materialises the rows it actually renders.
-def scan() -> pl.LazyFrame:
-    return pl.scan_parquet(PROCESSED_URI)
+# Red for warm, blue for cold, white at zero.
+DIVERGING = alt.Scale(scheme="redblue", reverse=True, domainMid=0)
 
 
-@st.cache_data(ttl=3600, show_spinner="Reading the dataset summary ...")
-def load_summary() -> dict:
-    row = (
-        scan()
-        .select(
-            pl.len().alias("rows"),
-            pl.col("city").n_unique().alias("cities"),
-            pl.col("country").n_unique().alias("countries"),
-            pl.col("dt").min().alias("first_dt"),
-            pl.col("dt").max().alias("last_dt"),
-        )
-        .collect(engine="streaming")
+@st.cache_data(ttl=3600, show_spinner="Loading data ...")
+def load_data() -> pl.DataFrame:
+    return pl.read_parquet(PROCESSED_URI).with_columns(
+        pl.col("country", "city").cast(pl.String)
     )
-    return row.to_dicts()[0]
 
 
-@st.cache_data(ttl=3600, show_spinner="Loading city list ...")
-def load_cities() -> list[str]:
-    cities = (
-        scan()
-        .select(pl.col("city").cast(pl.String))
-        .unique()
-        .collect(engine="streaming")
-    )
-    return sorted(cities["city"].to_list())
-
-
-@st.cache_data(ttl=3600, show_spinner="Loading city series ...")
-def load_city_series(cities: tuple[str, ...]) -> pl.DataFrame:
+@st.cache_data(ttl=3600)
+def city_trends(df: pl.DataFrame) -> pl.DataFrame:
+    # Least-squares slope of anomaly over year, in degrees per decade.
+    year = pl.col("year").cast(pl.Float64)
     return (
-        scan()
-        .filter(pl.col("city").cast(pl.String).is_in(list(cities)))
-        .select("dt", pl.col("city").cast(pl.String), "temperature_anomaly")
-        .collect(engine="streaming")
-    )
-
-
-@st.cache_data(ttl=3600, show_spinner="Ranking cities ...")
-def load_top_warming(cutoff: dt.date, limit: int = 20) -> pl.DataFrame:
-    return (
-        scan()
-        .filter(pl.col("dt") >= cutoff)
-        .filter(pl.col("temperature_anomaly").is_not_nan())
+        df.filter(pl.col("year") >= TREND_START)
         .group_by("country", "city")
         .agg(
-            pl.col("temperature_anomaly").mean().round(3).alias("avg_anomaly"),
-            pl.col("temperature_anomaly").max().round(3).alias("max_anomaly"),
+            pl.col("latitude").first(),
+            pl.col("longitude").first(),
+            (pl.cov(year, pl.col("temperature_anomaly")) / year.var() * 10).alias(
+                "trend_per_decade"
+            ),
         )
-        .sort("avg_anomaly", descending=True)
-        .head(limit)
-        .with_columns(
-            pl.col("country").cast(pl.String),
-            pl.col("city").cast(pl.String),
+        .drop_nulls()
+    )
+
+
+def anomaly_bars(df: pl.DataFrame) -> alt.Chart:
+    return (
+        alt.Chart(df)
+        .mark_bar()
+        .encode(
+            x=alt.X(
+                "year:Q",
+                title="Year",
+                axis=alt.Axis(format="d"),
+                scale=alt.Scale(zero=False),
+            ),
+            y=alt.Y("temperature_anomaly:Q", title="Anomaly vs 1951–1980 (°C)"),
+            color=alt.Color("temperature_anomaly:Q", scale=DIVERGING, legend=None),
+            tooltip=[
+                alt.Tooltip("year:Q", format="d"),
+                alt.Tooltip("temperature_anomaly:Q", format="+.2f", title="Anomaly"),
+            ],
         )
-        .collect(engine="streaming")
+        .properties(height=300)
     )
 
 
 def main() -> None:
     st.set_page_config(page_title="Global climate", layout="wide")
-    st.title("Global climate features")
+    st.title("How much have cities warmed?")
     st.caption(
-        "Rolling baselines and anomalies from the Berkeley Earth "
-        "surface temperature dataset."
+        "Berkeley Earth city temperatures. Each year is compared with the city's "
+        "own 1951–1980 average."
     )
 
-    summary = load_summary()
+    df = load_data()
+    trends = city_trends(df)
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Rows", f"{summary['rows']:,}")
-    col2.metric("Cities", f"{summary['cities']:,}")
-    col3.metric("Countries", f"{summary['countries']:,}")
-    col4.metric("Date range", f"{summary['first_dt']} → {summary['last_dt']}")
+    global_mean = (
+        df.group_by("year").agg(pl.col("temperature_anomaly").mean()).sort("year")
+    )
+    last_decade = global_mean.filter(pl.col("year") > global_mean["year"].max() - 10)
 
-    st.divider()
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Cities", f"{trends.height:,}")
+    c2.metric(
+        f"Mean anomaly {last_decade['year'].min()}–{last_decade['year'].max()}",
+        f"{last_decade['temperature_anomaly'].mean():+.2f} °C",
+    )
+    c3.metric(
+        f"Median city trend since {TREND_START}",
+        f"{trends['trend_per_decade'].median():+.2f} °C / decade",
+    )
+
+    st.subheader("Global mean anomaly")
+    st.caption("Average of all cities with a complete year of data.")
+    st.altair_chart(anomaly_bars(global_mean), width="stretch")
+
+    st.subheader(f"Warming trend since {TREND_START}")
+    world = alt.Chart(alt.topo_feature(WORLD_TOPOJSON, "countries")).mark_geoshape(
+        fill="#eeeeee", stroke="white"
+    )
+    points = (
+        alt.Chart(trends)
+        .mark_circle(size=25)
+        .encode(
+            longitude="longitude:Q",
+            latitude="latitude:Q",
+            color=alt.Color("trend_per_decade:Q", scale=DIVERGING, title="°C / decade"),
+            tooltip=[
+                "city",
+                "country",
+                alt.Tooltip("trend_per_decade:Q", format="+.2f"),
+            ],
+        )
+    )
+    st.altair_chart(
+        (world + points).project("equalEarth").properties(height=450), width="stretch"
+    )
 
     st.subheader("City drill-down")
-    cities = load_cities()
-    default = [c for c in ("Berlin", "Tokyo", "Lima") if c in cities] or cities[:3]
-    selected = st.multiselect("Cities", cities, default=default)
+    col1, col2 = st.columns(2)
+    countries = sorted(df["country"].unique())
+    country = col1.selectbox("Country", countries, index=countries.index("Germany"))
+    cities = sorted(df.filter(pl.col("country") == country)["city"].unique())
+    city = col2.selectbox(
+        "City", cities, index=cities.index("Berlin") if "Berlin" in cities else 0
+    )
+    st.altair_chart(
+        anomaly_bars(df.filter(pl.col("country") == country, pl.col("city") == city)),
+        width="stretch",
+    )
 
-    if selected:
-        subset = load_city_series(tuple(sorted(selected)))
-        chart = (
-            alt.Chart(subset)
-            .mark_line()
-            .encode(
-                x=alt.X("dt:T", title="Date"),
-                y=alt.Y("temperature_anomaly:Q", title="Anomaly (°C)"),
-                color="city:N",
-                tooltip=["dt", "city", "temperature_anomaly"],
-            )
-            .properties(height=400)
-        )
-        st.altair_chart(chart, use_container_width=True)
-
-    st.divider()
-
-    st.subheader("Top warming cities")
-    window_years = st.slider("Window (years back from most recent)", 5, 100, 30)
-    latest: dt.date = summary["last_dt"]
-    cutoff = dt.date(latest.year - window_years, latest.month, 1)
-
+    st.subheader("Fastest-warming cities")
     st.dataframe(
-        load_top_warming(cutoff),
-        use_container_width=True,
+        trends.sort("trend_per_decade", descending=True)
+        .head(10)
+        .select("country", "city", pl.col("trend_per_decade").round(2)),
+        width="stretch",
         hide_index=True,
     )
 
-    st.caption("Data: Berkeley Earth via Kaggle. Baseline = 360-month rolling mean.")
+    st.caption("Data: Berkeley Earth via Kaggle.")
 
 
 if __name__ == "__main__":
