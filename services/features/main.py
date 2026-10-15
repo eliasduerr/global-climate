@@ -41,6 +41,26 @@ FEATURES_SCHEMA = pl.Schema(
 )
 
 
+def _get_input_path() -> str:
+    bucket: str | None = os.environ.get("DATA_BUCKET")
+    default_input_path: str = (
+        f"s3://{bucket}/interim/temperatures.parquet"
+        if bucket
+        else "s3://interim/temperatures.parquet"
+    )
+    return os.environ.get("CLEANED_INPUT_PATH", default_input_path)
+
+
+def _get_output_path() -> str:
+    bucket: str | None = os.environ.get("DATA_BUCKET")
+    default_output_path: str = (
+        f"s3://{bucket}/processed/city-annual.parquet"
+        if bucket
+        else "s3://processed/city-annual.parquet"
+    )
+    return os.environ.get("FEATURES_OUTPUT_PATH", default_output_path)
+
+
 def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
     """Calculates the features from the cleaned data.
 
@@ -82,19 +102,8 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
 
 
 def main():
-    bucket: str | None = os.environ.get("DATA_BUCKET")
-    default_input_path: str = (
-        f"s3://{bucket}/interim/temperatures.parquet"
-        if bucket
-        else "s3://interim/temperatures.parquet"
-    )
-    default_output_path: str = (
-        f"s3://{bucket}/processed/city-annual.parquet"
-        if bucket
-        else "s3://processed/city-annual.parquet"
-    )
-    input_path: str = os.environ.get("CLEANED_INPUT_PATH", default_input_path)
-    output_path: str = os.environ.get("FEATURES_OUTPUT_PATH", default_output_path)
+    input_path: str = _get_input_path()
+    output_path: str = _get_output_path()
 
     logger.info("Reading cleaned data from %r ...", input_path)
     lf: pl.LazyFrame = pl.scan_parquet(input_path, schema=CLEANED_SCHEMA)

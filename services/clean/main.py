@@ -36,6 +36,26 @@ CLEANED_SCHEMA = pl.Schema(
 )
 
 
+def _get_input_path() -> str:
+    bucket: str | None = os.environ.get("DATA_BUCKET")
+    default_input_path: str = (
+        f"s3://{bucket}/raw/temperatures.parquet"
+        if bucket
+        else "s3://raw/temperatures.parquet"
+    )
+    return os.environ.get("RAW_INPUT_PATH", default_input_path)
+
+
+def _get_output_path() -> str:
+    bucket: str | None = os.environ.get("DATA_BUCKET")
+    default_output_path: str = (
+        f"s3://{bucket}/interim/temperatures.parquet"
+        if bucket
+        else "s3://interim/temperatures.parquet"
+    )
+    return os.environ.get("CLEAN_OUTPUT_PATH", default_output_path)
+
+
 def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
     """Clean the raw data.
 
@@ -101,19 +121,8 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
 
 
 def main() -> None:
-    bucket: str | None = os.environ.get("DATA_BUCKET")
-    default_input_path: str = (
-        f"s3://{bucket}/raw/temperatures.parquet"
-        if bucket
-        else "s3://raw/temperatures.parquet"
-    )
-    default_output_path: str = (
-        f"s3://{bucket}/interim/temperatures.parquet"
-        if bucket
-        else "s3://interim/temperatures.parquet"
-    )
-    input_path: str = os.environ.get("RAW_INPUT_PATH", default=default_input_path)
-    output_path: str = os.environ.get("CLEAN_OUTPUT_PATH", default=default_output_path)
+    input_path: str = _get_input_path()
+    output_path: str = _get_output_path()
 
     logger.info("Reading raw data from %r ...", input_path)
     lf: pl.LazyFrame = pl.scan_parquet(input_path, schema=RAW_SCHEMA)

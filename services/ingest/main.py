@@ -7,6 +7,9 @@ import boto3
 import polars as pl
 from kagglehub import KaggleDatasetAdapter, dataset_load
 
+DEFAULT_DATASET = "berkeleyearth/climate-change-earth-surface-temperature-data"
+DEFAULT_DATASET_FILE = "GlobalLandTemperaturesByCity.csv"
+
 RAW_SCHEMA = pl.Schema(
     {
         "dt": pl.Utf8,
@@ -52,24 +55,30 @@ def _get_kaggle_token_from_ssm() -> None:
     os.environ["KAGGLE_API_TOKEN"] = response["Parameter"]["Value"]
 
 
-def main() -> None:
-    _get_kaggle_token_from_ssm()
+def _get_dataset_name() -> str:
+    return os.environ.get("KAGGLE_DATASET", DEFAULT_DATASET)
 
-    dataset = os.environ.get(
-        "KAGGLE_DATASET",
-        default="berkeleyearth/climate-change-earth-surface-temperature-data",
-    )
-    source_file = os.environ.get(
-        "KAGGLE_DATASET_FILE", default="GlobalLandTemperaturesByCity.csv"
-    )
 
+def _get_dataset_file_name() -> str:
+    return os.environ.get("KAGGLE_DATASET_FILE", DEFAULT_DATASET_FILE)
+
+
+def _get_output_path() -> str:
     bucket: str | None = os.environ.get("DATA_BUCKET")
     default_output_path: str = (
         f"s3://{bucket}/raw/temperatures.parquet"
         if bucket
         else "s3://raw/temperatures.parquet"
     )
-    output_path = os.environ.get("RAW_OUTPUT_PATH", default=default_output_path)
+    return os.environ.get("RAW_OUTPUT_PATH", default_output_path)
+
+
+def main() -> None:
+    _get_kaggle_token_from_ssm()
+
+    dataset = _get_dataset_name()
+    source_file = _get_dataset_file_name()
+    output_path = _get_output_path()
 
     logger.info("Loading %r from Kaggle dataset %r ...", source_file, dataset)
     lf: pl.LazyFrame = dataset_load(
