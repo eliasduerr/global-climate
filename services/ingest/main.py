@@ -29,24 +29,26 @@ logging.basicConfig(
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-def _get_kaggle_token_from_ssm() -> None:
+def _set_kaggle_token_from_ssm() -> None:
     """Load the Kaggle API token from AWS SSM Parameter Store.
 
-    Logs a warning if `KAGGLE_API_TOKEN` is already set.
+    Logs an info message if `KAGGLE_API_TOKEN` is already set.
     Otherwise, the function gets the value from the AWS SSM Parameter Store location defined in `KAGGLE_TOKEN_PARAM`.
-    The `KAGGLE_API_TOKEN` is set from this new value.
+    The `KAGGLE_API_TOKEN` is set from this new value, as `kagglehub` reads it from the environment.
+
+    Raises:
+        RuntimeError: If neither `KAGGLE_API_TOKEN` nor `KAGGLE_TOKEN_PARAM` is set.
     """
 
     if os.environ.get("KAGGLE_API_TOKEN"):
         msg = "KAGGLE_API_TOKEN environment variable is already set. Skipping retrieval from SSM."
-        logger.warning(msg)
+        logger.info(msg)
         return None
 
     param_name: str | None = os.environ.get("KAGGLE_TOKEN_PARAM")
     if not param_name:
-        msg = "KAGGLE_TOKEN_PARAM environment variable is not set. Skipping retrieval from SSM."
-        logger.warning(msg)
-        return None
+        msg = "Neither KAGGLE_API_TOKEN nor KAGGLE_TOKEN_PARAM environment variable is set."
+        raise RuntimeError(msg)
 
     ssm = boto3.client("ssm")
     response: dict[str, dict[str, str]] = ssm.get_parameter(
@@ -74,7 +76,7 @@ def _get_output_path() -> str:
 
 
 def main() -> None:
-    _get_kaggle_token_from_ssm()
+    _set_kaggle_token_from_ssm()
 
     dataset = _get_dataset_name()
     source_file = _get_dataset_file_name()
