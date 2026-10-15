@@ -142,6 +142,43 @@ def test_uninterpolatable_nulls_are_dropped():
     assert_frame_equal(output_df, EXPECTED_DF)
 
 
+def test_only_ambiguous_city_names_get_coordinates():
+    INPUT_LF: pl.LazyFrame = _raw_lf(
+        [
+            _raw_row("1900-01-01", 1.0, 0.1, city="Berlin"),
+            _raw_row("1900-01-01", 1.0, 0.1, city="Springfield", lat="39.38N"),
+            _raw_row("1900-01-01", 1.0, 0.1, city="Springfield", lat="42.59N"),
+        ]
+    )
+    output_df = transform(INPUT_LF).collect()
+
+    assert sorted(output_df["city"].cast(pl.String).to_list()) == [
+        "Berlin",
+        "Springfield (39.38N, 13.04E)",
+        "Springfield (42.59N, 13.04E)",
+    ]
+
+
+def test_same_name_cities_are_interpolated_independently():
+    INPUT_LF: pl.LazyFrame = _raw_lf(
+        [
+            _raw_row("1900-01-01", 10.0, 0.1, city="Springfield", lat="39.38N"),
+            _raw_row("1900-02-01", None, 0.1, city="Springfield", lat="39.38N"),
+            _raw_row("1900-03-01", 30.0, 0.1, city="Springfield", lat="39.38N"),
+            _raw_row("1900-01-01", 100.0, 0.1, city="Springfield", lat="42.59N"),
+            _raw_row("1900-03-01", 100.0, 0.1, city="Springfield", lat="42.59N"),
+        ]
+    )
+    output_df = transform(INPUT_LF).collect()
+
+    interpolated = output_df.filter(
+        pl.col("city") == "Springfield (39.38N, 13.04E)",
+        pl.col("dt") == dt.date(1900, 2, 1),
+    )["avg_temperature"]
+    assert interpolated.to_list() == pytest.approx([10.0 + 20.0 * 31 / 59])
+    assert output_df.height == 5
+
+
 _dt_str = st.dates(min_value=dt.date(1700, 1, 1), max_value=dt.date(2020, 12, 31)).map(
     lambda d: d.isoformat()
 )

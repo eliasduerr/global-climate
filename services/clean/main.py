@@ -60,6 +60,9 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
     """Clean the raw data.
 
     Column names are standardized to snake case.
+    City names that occur at several coordinates within a country are suffixed with
+    their coordinates (e.g. `Springfield (39.38N, 89.48W)`), so that `(country, city)`
+    uniquely identifies a location downstream.
     Date column is parsed, city and country are cast to categoricals.
     Unreliable early dates before 1850 are dropped.
     Temperature values with an uncertainty above 2 °C are nulled.
@@ -84,6 +87,16 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
                 "Latitude": "latitude",
                 "Longitude": "longitude",
             }
+        )
+        # Disambiguate city names that are not unique within a country
+        .with_columns(
+            pl.when(
+                pl.struct("latitude", "longitude").n_unique().over("country", "city")
+                > 1
+            )
+            .then(pl.format("{} ({}, {})", "city", "latitude", "longitude"))
+            .otherwise(pl.col("city"))
+            .alias("city")
         )
         # Cast data types for better performance
         .with_columns(
