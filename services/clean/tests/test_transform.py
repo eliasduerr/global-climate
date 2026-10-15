@@ -142,10 +142,6 @@ def test_uninterpolatable_nulls_are_dropped():
     assert_frame_equal(output_df, EXPECTED_DF)
 
 
-# ---------------------------------------------------------------------------
-# Property-based tests (polars.testing.parametric)
-# ---------------------------------------------------------------------------
-
 _dt_str = st.dates(min_value=dt.date(1700, 1, 1), max_value=dt.date(2020, 12, 31)).map(
     lambda d: d.isoformat()
 )

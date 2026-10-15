@@ -37,6 +37,22 @@ CLEANED_SCHEMA = pl.Schema(
 
 
 def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """Clean the raw data.
+
+    Column names are standardized to snake case.
+    Date column is parsed, city and country are cast to categoricals.
+    Unreliable early dates before 1850 are dropped.
+    Temperature values with an uncertainty above 2 °C are nulled.
+    Missing values (including the nulled ones) are linearly interpolated over time.
+    String coordinates are parsed to signed floats.
+    Remaining nulls are dropped.
+
+    Args:
+        lf: Raw monthly temperatures per city.
+
+    Returns:
+        Cleaned monthly temperatures per city.
+    """
     logger.info("Applying transformations ...")
     return (
         lf.rename(

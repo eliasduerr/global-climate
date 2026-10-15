@@ -12,9 +12,10 @@ logging.basicConfig(
 )
 logger: logging.Logger = logging.getLogger(__name__)
 
-# Reference period used by Berkeley Earth and NASA GISS.
 REFERENCE_START = 1951
+"""Start of the reference period according to Berkeley Earth and NASA GISS."""
 REFERENCE_END = 1980
+"""End of the reference period according to Berkeley Earth and NASA GISS."""
 
 CLEANED_SCHEMA = pl.Schema(
     {
@@ -41,6 +42,19 @@ FEATURES_SCHEMA = pl.Schema(
 
 
 def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """Calculates the features from the cleaned data.
+
+    Groups per year and city, then computes the `annual_temperature` by averaging over the monthly temperature averages.
+    Incomplete years are dropped, as these would be biased towards the present months (e.g. too cold if only winter month are present).
+    The anomaly is calculated by subtracting the average of the 1951-1980 period from each year's average.
+    Cities without a baseline are dropped.
+
+    Args:
+        lf: Cleaned monthly temperatures.
+
+    Returns:
+        One row per city and year with the average temperature and the temperature anomaly.
+    """
     logger.info("Calculating features ...")
     in_reference = pl.col("year").is_between(REFERENCE_START, REFERENCE_END)
     return (
@@ -51,7 +65,6 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
             pl.col("avg_temperature").mean().alias("annual_temperature"),
             pl.len().alias("n_months"),
         )
-        # Averaging 12 months cancels the seasonal cycle, so only complete years count.
         .filter(pl.col("n_months") == 12)
         .drop("n_months")
         .with_columns(
@@ -63,7 +76,6 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
                 .over(["country", "city"])
             ).alias("temperature_anomaly")
         )
-        # Cities without data in the reference period have no baseline.
         .drop_nulls("temperature_anomaly")
         .sort("country", "city", "year")
     )
@@ -87,7 +99,6 @@ def main():
     logger.info("Reading cleaned data from %r ...", input_path)
     lf: pl.LazyFrame = pl.scan_parquet(input_path, schema=CLEANED_SCHEMA)
 
-    # Apply transformations
     lf: pl.LazyFrame = lf.pipe(transform)
 
     logger.info("Validating schema and writing features to %r ...", output_path)

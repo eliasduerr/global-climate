@@ -27,6 +27,13 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 def _get_kaggle_token_from_ssm() -> None:
+    """Load the Kaggle API token from AWS SSM Parameter Store.
+
+    Logs a warning if `KAGGLE_API_TOKEN` is already set.
+    Otherwise, the function gets the value from the AWS SSM Parameter Store location defined in `KAGGLE_TOKEN_PARAM`.
+    The `KAGGLE_API_TOKEN` is set from this new value.
+    """
+
     if os.environ.get("KAGGLE_API_TOKEN"):
         msg = "KAGGLE_API_TOKEN environment variable is already set. Skipping retrieval from SSM."
         logger.warning(msg)

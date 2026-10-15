@@ -76,11 +76,6 @@ def _monthly_dates(start_year: int, end_year: int) -> list[dt.date]:
     ]
 
 
-# ---------------------------------------------------------------------------
-# Example tests
-# ---------------------------------------------------------------------------
-
-
 def test_constant_temperature_yields_zero_anomaly():
     dates = _monthly_dates(1950, 1985)
     output_df = transform(_cleaned_lf([_cleaned_row(d, 10.0) for d in dates])).collect()
@@ -92,7 +87,6 @@ def test_constant_temperature_yields_zero_anomaly():
 
 
 def test_seasonal_cycle_does_not_leak_into_anomaly():
-    # +/-10 degrees seasonal swing around a constant 10 degrees.
     dates = _monthly_dates(1950, 1985)
     rows = [
         _cleaned_row(d, 10.0 + (10.0 if d.month in (6, 7, 8) else -10.0 / 3))
@@ -104,7 +98,6 @@ def test_seasonal_cycle_does_not_leak_into_anomaly():
 
 
 def test_anomaly_is_relative_to_reference_period_mean():
-    # 1 degree per year ramp: reference mean sits at the 1965.5 midpoint.
     dates = _monthly_dates(1950, 1985)
     rows = [_cleaned_row(d, float(d.year)) for d in dates]
     output_df = transform(_cleaned_lf(rows)).collect()

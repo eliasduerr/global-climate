@@ -13,10 +13,8 @@ PROCESSED_URI = os.environ.get(
 TREND_START = 1950
 WORLD_TOPOJSON = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
 
-# ~550k rows is past Altair's default 5000-row cap.
 alt.data_transformers.disable_max_rows()
 
-# Red for warm, blue for cold, white at zero.
 DIVERGING = alt.Scale(scheme="redblue", reverse=True, domainMid=0)
 
 
@@ -29,7 +27,7 @@ def load_data() -> pl.DataFrame:
 
 @st.cache_data(ttl=3600)
 def city_trends(df: pl.DataFrame) -> pl.DataFrame:
-    # Least-squares slope of anomaly over year, in degrees per decade.
+    """Computes the linear regression slope (°C per decade) for each city since 1950."""
     year = pl.col("year").cast(pl.Float64)
     return (
         df.filter(pl.col("year") >= TREND_START)
@@ -56,7 +54,7 @@ def anomaly_bars(df: pl.DataFrame) -> alt.Chart:
                 axis=alt.Axis(format="d"),
                 scale=alt.Scale(zero=False),
             ),
-            y=alt.Y("temperature_anomaly:Q", title="Anomaly vs 1951–1980 (°C)"),
+            y=alt.Y("temperature_anomaly:Q", title="Anomaly vs 1951-1980 (°C)"),
             color=alt.Color("temperature_anomaly:Q", scale=DIVERGING, legend=None),
             tooltip=[
                 alt.Tooltip("year:Q", format="d"),
@@ -72,7 +70,7 @@ def main() -> None:
     st.title("How much have cities warmed?")
     st.caption(
         "Berkeley Earth city temperatures. Each year is compared with the city's "
-        "own 1951–1980 average."
+        "own 1951-1980 average."
     )
 
     df = load_data()
@@ -86,7 +84,7 @@ def main() -> None:
     c1, c2, c3 = st.columns(3)
     c1.metric("Cities", f"{trends.height:,}")
     c2.metric(
-        f"Mean anomaly {last_decade['year'].min()}–{last_decade['year'].max()}",
+        f"Mean anomaly {last_decade['year'].min()}-{last_decade['year'].max()}",
         f"{last_decade['temperature_anomaly'].mean():+.2f} °C",
     )
     c3.metric(

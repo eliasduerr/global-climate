@@ -7,8 +7,6 @@ data "aws_ecr_image" "dashboard" {
   image_tag       = lookup(var.image_tags, "dashboard", local.default_image_tag)
 }
 
-# --- Task execution role (image pull + logs) -------------------------------
-
 resource "aws_iam_role" "dashboard_execution" {
   name               = "${local.dashboard_name}-execution"
   assume_role_policy = data.aws_iam_policy_document.task_assume.json
@@ -18,8 +16,6 @@ resource "aws_iam_role_policy_attachment" "dashboard_execution" {
   role       = aws_iam_role.dashboard_execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
-
-# --- Task role (S3 read on processed/) -------------------------------------
 
 resource "aws_iam_role" "dashboard_task" {
   name               = "${local.dashboard_name}-task"
@@ -49,8 +45,6 @@ resource "aws_iam_role_policy" "dashboard_task" {
   policy = data.aws_iam_policy_document.dashboard_task.json
 }
 
-# --- Infrastructure role (ECS manages ALB / target groups / etc.) ----------
-
 data "aws_iam_policy_document" "dashboard_infrastructure_assume" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -71,14 +65,10 @@ resource "aws_iam_role_policy_attachment" "dashboard_infrastructure" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices"
 }
 
-# --- Logs ------------------------------------------------------------------
-
 resource "aws_cloudwatch_log_group" "dashboard" {
   name              = "/ecs/${local.dashboard_name}"
   retention_in_days = 14
 }
-
-# --- Task security group (egress only) -------------------------------------
 
 resource "aws_security_group" "dashboard_task" {
   name        = "${local.dashboard_name}-task"
@@ -109,8 +99,6 @@ resource "aws_security_group" "dashboard_task" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
-
-# --- Express service -------------------------------------------------------
 
 resource "aws_ecs_express_gateway_service" "dashboard" {
   service_name            = local.dashboard_name

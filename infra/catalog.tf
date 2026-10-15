@@ -2,6 +2,7 @@ resource "aws_glue_catalog_database" "main" {
   name = replace(var.project, "-", "_")
 }
 
+# Lets AWS Athena run SQL queries against our processed data
 resource "aws_glue_catalog_table" "city_annual" {
   name          = "city_annual"
   database_name = aws_glue_catalog_database.main.name

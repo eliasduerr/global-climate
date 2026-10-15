@@ -16,6 +16,7 @@ locals {
   }
 
   ephemeral_storage_gib = {
+    # Ingest needs extra storage for `.csv` download
     ingest   = 30
     clean    = 21
     features = 21
@@ -29,6 +30,7 @@ locals {
   task_memory_mb = {
     ingest   = 4096
     clean    = 4096
+    # Features needs extra memory for aggregation
     features = 8192
   }
 
