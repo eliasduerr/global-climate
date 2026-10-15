@@ -133,15 +133,6 @@ def main() -> None:
         width="stretch",
     )
 
-    st.subheader("Fastest-warming cities")
-    st.dataframe(
-        trends.sort("trend_per_decade", descending=True)
-        .head(10)
-        .select("country", "city", pl.col("trend_per_decade").round(2)),
-        width="stretch",
-        hide_index=True,
-    )
-
     st.caption("Data: Berkeley Earth via Kaggle.")
 
 
