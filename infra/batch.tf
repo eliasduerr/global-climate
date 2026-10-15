@@ -28,8 +28,8 @@ locals {
     features = 2
   }
   task_memory_mb = {
-    ingest   = 4096
-    clean    = 4096
+    ingest = 4096
+    clean  = 4096
     # Features needs extra memory for aggregation
     features = 8192
   }
