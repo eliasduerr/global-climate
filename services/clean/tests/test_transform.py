@@ -103,12 +103,12 @@ def test_coordinate_signs_for_all_hemispheres():
     assert_frame_equal(output_df, EXPECTED_DF)
 
 
-def test_high_uncertainty_values_are_masked_then_interpolated():
+def test_high_uncertainty_values_are_dropped():
     INPUT_LF: pl.LazyFrame = _raw_lf(
         [
             _raw_row("1900-01-01", 10.0, 0.1),
-            _raw_row("1900-01-31", 999.0, 5.0),
-            _raw_row("1900-03-02", 30.0, 0.1),
+            _raw_row("1900-02-01", 999.0, 5.0),
+            _raw_row("1900-03-01", 30.0, 2.0),
         ]
     )
     output_df = transform(INPUT_LF).collect().sort("dt")
@@ -116,26 +116,27 @@ def test_high_uncertainty_values_are_masked_then_interpolated():
     EXPECTED_DF: pl.LazyFrame = _cleaned_lf(
         [
             _cleaned_row(dt.date(1900, 1, 1), 10.0, 0.1),
-            _cleaned_row(dt.date(1900, 1, 31), 20.0, 5.0),
-            _cleaned_row(dt.date(1900, 3, 2), 30.0, 0.1),
+            _cleaned_row(dt.date(1900, 3, 1), 30.0, 2.0),
         ]
     ).collect()
 
     assert_frame_equal(output_df, EXPECTED_DF)
 
 
-def test_uninterpolatable_nulls_are_dropped():
+def test_missing_values_are_dropped_not_interpolated():
     INPUT_LF: pl.LazyFrame = _raw_lf(
         [
-            _raw_row("1900-01-01", None, 0.1),
-            _raw_row("1900-02-01", 20.0, 0.1),
+            _raw_row("1900-01-01", 10.0, 0.1),
+            _raw_row("1900-02-01", None, None),
+            _raw_row("1900-03-01", 30.0, 0.1),
         ]
     )
-    output_df = transform(INPUT_LF).collect()
+    output_df = transform(INPUT_LF).collect().sort("dt")
 
     EXPECTED_DF: pl.LazyFrame = _cleaned_lf(
         [
-            _cleaned_row(dt.date(1900, 2, 1), 20.0, 0.1),
+            _cleaned_row(dt.date(1900, 1, 1), 10.0, 0.1),
+            _cleaned_row(dt.date(1900, 3, 1), 30.0, 0.1),
         ]
     ).collect()
 
@@ -157,26 +158,6 @@ def test_only_ambiguous_city_names_get_coordinates():
         "Springfield (39.38N, 13.04E)",
         "Springfield (42.59N, 13.04E)",
     ]
-
-
-def test_same_name_cities_are_interpolated_independently():
-    INPUT_LF: pl.LazyFrame = _raw_lf(
-        [
-            _raw_row("1900-01-01", 10.0, 0.1, city="Springfield", lat="39.38N"),
-            _raw_row("1900-02-01", None, 0.1, city="Springfield", lat="39.38N"),
-            _raw_row("1900-03-01", 30.0, 0.1, city="Springfield", lat="39.38N"),
-            _raw_row("1900-01-01", 100.0, 0.1, city="Springfield", lat="42.59N"),
-            _raw_row("1900-03-01", 100.0, 0.1, city="Springfield", lat="42.59N"),
-        ]
-    )
-    output_df = transform(INPUT_LF).collect()
-
-    interpolated = output_df.filter(
-        pl.col("city") == "Springfield (39.38N, 13.04E)",
-        pl.col("dt") == dt.date(1900, 2, 1),
-    )["avg_temperature"]
-    assert interpolated.to_list() == pytest.approx([10.0 + 20.0 * 31 / 59])
-    assert output_df.height == 5
 
 
 _dt_str = st.dates(min_value=dt.date(1700, 1, 1), max_value=dt.date(2020, 12, 31)).map(

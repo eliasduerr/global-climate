@@ -65,10 +65,10 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
     uniquely identifies a location downstream.
     Date column is parsed, city and country are cast to categoricals.
     Unreliable early dates before 1850 are dropped.
-    Temperature values with an uncertainty above 2 °C are nulled.
-    Missing values (including the nulled ones) are linearly interpolated over time.
+    Months with an uncertainty above 2 °C are dropped.
     String coordinates are parsed to signed floats.
-    Remaining nulls are dropped.
+    Months with missing values are dropped.
+    Gaps are not interpolated, as linear interpolation ignores the seasonal cycle.
 
     Args:
         lf: Raw monthly temperatures per city.
@@ -107,16 +107,7 @@ def transform(lf: pl.LazyFrame) -> pl.LazyFrame:
         # Remove unreliable years
         .filter(pl.col("dt").dt.year() >= 1850)
         # Remove outliers
-        .with_columns(
-            pl.when(pl.col("avg_temperature_uncertainty") > 2.0)
-            .then(None)
-            .otherwise(pl.col("avg_temperature"))
-            .alias("avg_temperature")
-        )
-        # Interpolate missing values
-        .with_columns(
-            pl.col("avg_temperature").interpolate_by("dt").over(["city", "country"])
-        )
+        .filter(pl.col("avg_temperature_uncertainty") <= 2.0)
         # Cast coordinates to signed floats
         .with_columns(
             (
