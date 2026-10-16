@@ -202,7 +202,7 @@ The `.env.example` file in each service lists the variables for running against 
 ## CI/CD
 
 - **[CI](.github/workflows/ci.yml)** runs on every push and on pull requests to `main`. It runs all pre-commit hooks and, for each service, `uv sync --frozen` followed by `pytest`.
-- **[publish-images](.github/workflows/publish-images.yml)** runs on pushes to `main` and on manual dispatch. It builds all four images and pushes them to ECR, tagged with the commit SHA and `latest`. It authenticates through GitHub OIDC and needs two repository secrets:
+- **[publish-images](.github/workflows/publish-images.yml)** runs after CI succeeds for a push to `main`, and on manual dispatch. It builds all four images and pushes them to ECR, tagged with the tested commit's SHA and `latest`. It authenticates through GitHub OIDC and needs two repository secrets:
   - `AWS_ACCOUNT_ID`
   - `AWS_CI_ROLE_ARN`: an IAM role that GitHub Actions may assume and that can push to the ECR repositories. This role is not managed by this Terraform setup.
 

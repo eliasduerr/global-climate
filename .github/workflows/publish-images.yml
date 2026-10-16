@@ -1,7 +1,9 @@
 name: Build & Push Docker Images
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -13,10 +15,14 @@ env:
   AWS_REGION: eu-central-1
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.eu-central-1.amazonaws.com
   ECR_NAMESPACE: global-climate
+  COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   build:
     name: build & push (${{ matrix.service }})
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -24,6 +30,8 @@ jobs:
         service: [ingest, clean, features, dashboard]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.COMMIT_SHA }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -37,6 +45,6 @@ jobs:
       - name: Build & push
         run: |
           IMAGE=${ECR_REGISTRY}/${ECR_NAMESPACE}/${{ matrix.service }}
-          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest services/${{ matrix.service }}
-          docker push $IMAGE:${{ github.sha }}
+          docker build -t $IMAGE:$COMMIT_SHA -t $IMAGE:latest services/${{ matrix.service }}
+          docker push $IMAGE:$COMMIT_SHA
           docker push $IMAGE:latest
