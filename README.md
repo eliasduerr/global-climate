@@ -87,6 +87,7 @@ services/
   features/    batch job: interim/ → processed/
   dashboard/   Streamlit app on ECS Express
 infra/         Terraform for all AWS resources
+compose.yaml   local demo of the pipeline with Docker Compose
 .github/
   workflows/   CI (pre-commit + tests) and image publishing to ECR
 ```
@@ -197,7 +198,16 @@ mkdir -p data
 (cd services/dashboard && PROCESSED_URI=../../data/city-annual.parquet uv run streamlit run main.py)
 ```
 
-The `.env.example` file in each service lists the variables for running against an S3-compatible store such as MinIO.
+### Local demo with Docker Compose
+
+[compose.yaml](compose.yaml) runs the same images as AWS on your machine: ingest, clean and features run one after another, then the dashboard starts. Instead of S3, the stages share a Docker volume.
+
+```sh
+cp .env.example .env          # set KAGGLE_API_TOKEN
+docker compose up --build
+```
+
+The dashboard is served at <http://localhost:8501> (`DASHBOARD_PORT` in `.env` changes the port). Each `docker compose up` runs the whole pipeline again. To only restart the dashboard on the existing data, run `docker compose up --no-deps dashboard`. `docker compose down -v` removes the data volume.
 
 ## CI/CD
 

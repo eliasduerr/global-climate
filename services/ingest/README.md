@@ -36,7 +36,7 @@ Dates and coordinates stay strings here and are parsed in [clean](../clean/READM
 | `DATA_BUCKET` | – | Bucket used to build the default output path. |
 | `RAW_OUTPUT_PATH` | `s3://<DATA_BUCKET>/raw/temperatures.parquet` | Output path. Can also be a local file path. |
 
-One of `KAGGLE_API_TOKEN` or `KAGGLE_TOKEN_PARAM` is required. If neither `DATA_BUCKET` nor `RAW_OUTPUT_PATH` is set, the output goes to `s3://raw/temperatures.parquet` (a bucket called `raw`, as used with a local MinIO).
+One of `KAGGLE_API_TOKEN` or `KAGGLE_TOKEN_PARAM` is required. If neither `DATA_BUCKET` nor `RAW_OUTPUT_PATH` is set, the output goes to `s3://raw/temperatures.parquet` (a bucket called `raw`).
 
 ## Run locally
 

@@ -1,0 +1,57 @@
+name: global-climate
+
+services:
+  data-init:
+    image: busybox:1.37
+    command: chmod 1777 /data
+    volumes:
+      - data:/data
+
+  ingest:
+    build: ./services/ingest
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    environment:
+      KAGGLE_API_TOKEN: ${KAGGLE_API_TOKEN:-}
+      RAW_OUTPUT_PATH: /data/raw.parquet
+      HOME: /tmp
+    volumes:
+      - data:/data
+
+  clean:
+    build: ./services/clean
+    depends_on:
+      ingest:
+        condition: service_completed_successfully
+    environment:
+      RAW_INPUT_PATH: /data/raw.parquet
+      CLEAN_OUTPUT_PATH: /data/interim.parquet
+    volumes:
+      - data:/data
+
+  features:
+    build: ./services/features
+    depends_on:
+      clean:
+        condition: service_completed_successfully
+    environment:
+      CLEANED_INPUT_PATH: /data/interim.parquet
+      FEATURES_OUTPUT_PATH: /data/city-annual.parquet
+    volumes:
+      - data:/data
+
+  dashboard:
+    build: ./services/dashboard
+    depends_on:
+      features:
+        condition: service_completed_successfully
+    environment:
+      PROCESSED_URI: /data/city-annual.parquet
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8080"
+    volumes:
+      - data:/data:ro
+
+volumes:
+  data:
